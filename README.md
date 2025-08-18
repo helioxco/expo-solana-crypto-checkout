@@ -333,7 +333,7 @@ Document any features not fully implemented or technical constraints encountered
    - Add evaluator GitHub usernames as collaborators
 
 2. **Email Notification**
-   Send to: hiring@vala.app
+   Send to: rr@vala.finance
    - Subject: "Technical Assessment - [Your Name]"
    - GitHub repository link
    - Demo video link (if created)
@@ -360,8 +360,8 @@ A: SOL is the default, but users should be able to switch between SOL and USDC.
 A: Use the mock rates provided: 1 SOL = $20, 1 USDC = $1
 
 ## Questions?
-- Technical questions: technical@vala.app
-- Process questions: hiring@vala.app
+- Technical questions: rr@vala.finance
+- Process questions: revi@vala.finance
 
 ---
 
