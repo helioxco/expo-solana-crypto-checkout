@@ -51,9 +51,9 @@ npx expo start
 
 ## Testnet Configuration
 
-This app operates on **Solana Devnet** only. Users will receive mock test tokens:
-- **5 SOL** (Devnet) - Exchange rate: 1 SOL = $20 (mock)
-- **100 USDC** (Devnet) - Exchange rate: 1 USDC = $1
+This app operates on **Solana Devnet** only. Users will need mock test tokens:
+- **5 SOL** (Devnet)
+- **100 USDC** (Devnet) 
 
 ### Getting Testnet Tokens
 - **SOL Faucet:** https://faucet.solana.com/
