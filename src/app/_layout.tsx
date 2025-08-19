@@ -12,9 +12,9 @@ export default function RootLayout() {
     // TODO: Wrap with PrivyProvider
     <QueryClientProvider client={queryClient}>
       <Stack>
-        <Stack.Screen name="index" options={{ title: 'Home' }} />
+        <Stack.Screen name="index" options={{ title: 'Connect Wallet' }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ title: 'Connect Wallet' }} />
-        <Stack.Screen name="products" options={{ title: 'Products' }} />
         <Stack.Screen name="product-detail" options={{ title: 'Product Details' }} />
         <Stack.Screen name="cart" options={{ title: 'Cart' }} />
         <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
