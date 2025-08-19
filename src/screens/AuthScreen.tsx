@@ -20,8 +20,8 @@ export default function AuthScreen() {
       setWalletBalance(MOCK_WALLET_BALANCE);
       setIsConnecting(false);
       
-      // Navigate to product list after successful connection
-      router.replace('/products');
+      // Navigate to tabs after successful connection
+      router.replace('/(tabs)');
     }, 1500);
   };
 

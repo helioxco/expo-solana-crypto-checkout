@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MOCK_PRODUCTS, PAYMENT_METHODS } from '../utils/constants';
 import { useCartStore } from '../store/cartStore';
@@ -41,67 +42,73 @@ export default function ProductListScreen() {
   const cartItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <View style={styles.container}>
-      {/* Wallet Balance Header with Cart Button */}
-      <View style={styles.balanceHeader}>
-        <View style={styles.balanceContent}>
-          <Text style={styles.balanceTitle}>Testnet Balance</Text>
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceText}>
-              {walletBalance.sol.toFixed(2)} SOL
-            </Text>
-            <Text style={styles.balanceDivider}>•</Text>
-            <Text style={styles.balanceText}>
-              {walletBalance.usdc.toFixed(2)} USDC
-            </Text>
+    <SafeAreaView edges={['top']} style={styles.container}>
+      <View style={styles.mainContainer}>
+        {/* Wallet Balance Header with Cart Button */}
+        <View style={styles.balanceHeader}>
+          <View style={styles.balanceContent}>
+            <Text style={styles.balanceTitle}>Testnet Balance</Text>
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceText}>
+                {walletBalance.sol.toFixed(2)} SOL
+              </Text>
+              <Text style={styles.balanceDivider}>•</Text>
+              <Text style={styles.balanceText}>
+                {walletBalance.usdc.toFixed(2)} USDC
+              </Text>
+            </View>
           </View>
-        </View>
-        <TouchableOpacity 
-          style={styles.cartButton}
-          onPress={() => router.push('/cart')}
-        >
-          <Text style={styles.cartButtonText}>Cart ({cartItemCount})</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Payment Method Selector */}
-      <View style={styles.paymentSelector}>
-        {PAYMENT_METHODS.map((method) => (
-          <TouchableOpacity
-            key={method.currency}
-            style={[
-              styles.paymentOption,
-              selectedPaymentCurrency === method.currency && styles.paymentOptionActive
-            ]}
-            onPress={() => {
-              // Implement payment method selection
-              useUserStore.getState().setSelectedPaymentCurrency(method.currency);
-            }}
+          <TouchableOpacity 
+            style={styles.cartButton}
+            onPress={() => router.push('/cart')}
           >
-            <Text style={[
-              styles.paymentOptionText,
-              selectedPaymentCurrency === method.currency && styles.paymentOptionTextActive
-            ]}>
-              {method.displayName}
-            </Text>
+            <Text style={styles.cartButtonText}>Cart ({cartItemCount})</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+        </View>
 
-      {/* Product List */}
-      <FlatList
-        data={MOCK_PRODUCTS}
-        renderItem={renderProduct}
-        keyExtractor={(item) => item.asin}
-        numColumns={2}
-        contentContainerStyle={styles.listContent}
-      />
-    </View>
+        {/* Payment Method Selector */}
+        <View style={styles.paymentSelector}>
+          {PAYMENT_METHODS.map((method) => (
+            <TouchableOpacity
+              key={method.currency}
+              style={[
+                styles.paymentOption,
+                selectedPaymentCurrency === method.currency && styles.paymentOptionActive
+              ]}
+              onPress={() => {
+                // Implement payment method selection
+                useUserStore.getState().setSelectedPaymentCurrency(method.currency);
+              }}
+            >
+              <Text style={[
+                styles.paymentOptionText,
+                selectedPaymentCurrency === method.currency && styles.paymentOptionTextActive
+              ]}>
+                {method.displayName}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Product List */}
+        <FlatList
+          data={MOCK_PRODUCTS}
+          renderItem={renderProduct}
+          keyExtractor={(item) => item.asin}
+          numColumns={2}
+          contentContainerStyle={styles.listContent}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  mainContainer: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },

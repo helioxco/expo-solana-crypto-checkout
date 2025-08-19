@@ -10,6 +10,7 @@ interface UserState {
   setWalletBalance: (balance: WalletBalance) => void;
   setSelectedPaymentCurrency: (currency: PaymentCurrency) => void;
   setShippingAddress: (address: ShippingAddress) => void;
+  disconnect: () => void;
 }
 
 export const useUserStore = create<UserState>((set) => ({
@@ -21,5 +22,11 @@ export const useUserStore = create<UserState>((set) => ({
   setWalletAddress: (address) => set({ walletAddress: address }),
   setWalletBalance: (balance) => set({ walletBalance: balance }),
   setSelectedPaymentCurrency: (currency) => set({ selectedPaymentCurrency: currency }),
-  setShippingAddress: (address) => set({ shippingAddress: address })
+  setShippingAddress: (address) => set({ shippingAddress: address }),
+  disconnect: () => set({ 
+    walletAddress: null, 
+    walletBalance: { sol: 0, usdc: 0 },
+    selectedPaymentCurrency: 'sol',
+    shippingAddress: null,
+  }),
 }));

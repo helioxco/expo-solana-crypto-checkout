@@ -9,6 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo/vector-icons": "^14.1.0",
     "@privy-io/expo": "^0.58.3",
     "@privy-io/react-auth": "^2.21.3",
     "@solana/web3.js": "^1.98.4",

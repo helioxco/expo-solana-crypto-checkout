@@ -9,9 +9,9 @@ export default function HomeScreen() {
 
   useEffect(() => {
     // TODO: Check if wallet is already connected from secure storage
-    // For now, if wallet is connected in store, navigate to products
+    // For now, if wallet is connected in store, navigate to tabs
     if (walletAddress) {
-      router.replace('/products');
+      router.replace('/(tabs)');
     }
   }, [walletAddress, router]);
 
