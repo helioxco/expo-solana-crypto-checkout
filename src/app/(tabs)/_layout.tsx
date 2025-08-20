@@ -18,21 +18,12 @@ export default function TabLayout() {
           paddingTop: 4,
           paddingBottom: Math.max(insets.bottom, 4),
         },
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
-        },
-        headerTitleStyle: {
-          fontWeight: '600',
-          color: '#1A1A1A',
-        },
-        headerShadowVisible: false,
+        headerShown: false,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),

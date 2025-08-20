@@ -1,32 +1,79 @@
+import { useEffect } from 'react';
+import { usePrivy } from '@privy-io/expo';
+import { usePhantomDeeplinkWalletConnector } from '@privy-io/expo/connectors';
+import * as SecureStore from 'expo-secure-store';
 import { useUserStore } from '../store/userStore';
 
 // TODO: Integrate with Privy for real wallet authentication
 
+const ADDRESS_KEY = 'wallet_address';
+
 export function useAuth() {
   const { walletAddress, setWalletAddress, setWalletBalance } = useUserStore();
+  const { logout, user } = usePrivy();
 
-  const connect = async () => {
-    // TODO: Implement Privy wallet connection
-    console.log('Connecting wallet...');
+  const {
+    address,
+    connect,
+    disconnect,
+    isConnected,
+    signTransaction,
+    signAndSendTransaction,
+  } = usePhantomDeeplinkWalletConnector({
+    appUrl: 'https://yourdapp.com',
+    redirectUri: '/(tabs)/products',
+  });
+
+  const connectHandle = async () => {
+    await connect();
   };
 
-  const disconnect = async () => {
-    // TODO: Implement Privy wallet disconnection
-    setWalletAddress(null);
-    setWalletBalance({ sol: 0, usdc: 0 });
+  const disconnectHandle = async () => {
+    try {
+      if (isConnected) {
+        await disconnect();
+      }
+    } catch (err: any) {
+      const message = String(err?.message || '');
+      if (!message.includes('missing shared secret')) {
+        throw err;
+      }
+    } finally {
+      setWalletAddress(null);
+      setWalletBalance({ sol: 0, usdc: 0 });
+      try {
+        await SecureStore.deleteItemAsync(ADDRESS_KEY);
+      } catch {}
+    }
   };
 
-  const signTransaction = async (transaction: any) => {
-    // TODO: Implement transaction signing with Privy
-    console.log('Signing transaction...');
-    return null;
-  };
+  // Sync address changes into app state and persistent storage
+  useEffect(() => {
+    if (address) {
+      setWalletAddress(address);
+      (async () => {
+        try {
+          await SecureStore.setItemAsync(ADDRESS_KEY, address);
+        } catch {}
+      })();
+    }
+  }, [address, setWalletAddress]);
+
+  // On mount or Privy user changes, hydrate from Privy (persistent session)
+  useEffect(() => {
+    const solAccount: any = (user as any)?.linked_accounts?.find((a: any) => a.type === 'wallet' && a.chain_type === 'solana');
+    if (solAccount?.address) {
+      setWalletAddress(solAccount.address as string);
+    }
+  }, [user, setWalletAddress]);
 
   return {
     walletAddress,
-    isConnected: !!walletAddress,
-    connect,
-    disconnect,
+    isConnected: !!(walletAddress || isConnected),
+    connectHandle,
+    disconnectHandle,
     signTransaction,
+    signAndSendTransaction,
+    address,
   };
 }

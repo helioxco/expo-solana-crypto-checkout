@@ -13,7 +13,11 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "plugins": [
       [
         "expo-router",
@@ -21,7 +25,8 @@
           "root": "./src/app"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "ios": {
       "supportsTablet": true

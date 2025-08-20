@@ -1,27 +1,37 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '../store/userStore';
 import { MOCK_WALLET_BALANCE } from '../utils/constants';
 
 export default function AuthScreen() {
   const [isConnecting, setIsConnecting] = useState(false);
-  const router = useRouter();
   const { setWalletAddress, setWalletBalance } = useUserStore();
+  const { connectHandle, address, isConnected } = useAuth();
 
   const handleConnect = async () => {
     setIsConnecting(true);
-    
+
     // TODO: Implement actual Privy wallet connection
     // For now, simulate connection with mock data
+    await connectHandle();
     setTimeout(() => {
-      const mockAddress = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // Mock Solana devnet address
-      setWalletAddress(mockAddress);
+      // const mockAddress = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // Mock Solana devnet address
+      if (isConnected) {
+        setWalletAddress(address || '');
+      } else {
+        setWalletAddress(null);
+      }
+      
       setWalletBalance(MOCK_WALLET_BALANCE);
       setIsConnecting(false);
-      
-      // Navigate to tabs after successful connection
-      router.replace('/(tabs)');
+
     }, 1500);
   };
 
@@ -29,14 +39,14 @@ export default function AuthScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>VALA Assessment</Text>
       <Text style={styles.subtitle}>Connect your wallet to purchase with crypto</Text>
-      
+
       <View style={styles.infoBox}>
         <Text style={styles.infoTitle}>Testnet Only</Text>
         <Text style={styles.infoText}>This app uses Solana Devnet</Text>
         <Text style={styles.infoText}>You'll receive test SOL and USDC</Text>
       </View>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.connectButton, isConnecting && styles.connectButtonDisabled]}
         onPress={handleConnect}
         disabled={isConnecting}
