@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useCartStore } from '../store/cartStore';
 import { useUserStore } from '../store/userStore';
@@ -64,37 +65,43 @@ export default function CartScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={items}
-        renderItem={renderCartItem}
-        keyExtractor={(item) => item.asin}
-        contentContainerStyle={styles.listContent}
-      />
-      
-      <View style={styles.footer}>
-        <View style={styles.totalSection}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <View>
-            <Text style={styles.totalUSD}>${totalUSD.toFixed(2)}</Text>
-            <Text style={styles.totalCrypto}>
-              {totalCrypto.toFixed(4)} {selectedPaymentCurrency.toUpperCase()}
-            </Text>
+    <SafeAreaView edges={['bottom']} style={styles.container}>
+      <View style={styles.mainContainer}>
+        <FlatList
+          data={items}
+          renderItem={renderCartItem}
+          keyExtractor={(item) => item.asin}
+          contentContainerStyle={styles.listContent}
+        />
+        
+        <View style={styles.footer}>
+          <View style={styles.totalSection}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <View>
+              <Text style={styles.totalUSD}>${totalUSD.toFixed(2)}</Text>
+              <Text style={styles.totalCrypto}>
+                {totalCrypto.toFixed(4)} {selectedPaymentCurrency.toUpperCase()}
+              </Text>
+            </View>
           </View>
+          <TouchableOpacity 
+            style={styles.checkoutButton}
+            onPress={() => router.push('/checkout')}
+          >
+            <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          style={styles.checkoutButton}
-          onPress={() => router.push('/checkout')}
-        >
-          <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  mainContainer: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },

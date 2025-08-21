@@ -6,17 +6,20 @@ import {
   TouchableOpacity,
   Text,
   View,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useUserStore } from '../store/userStore';
 import { useAuth } from '../hooks/useAuth';
+import { useWalletBalance } from '../hooks/useWalletBalance';
 
 export default function ProfileScreen() {
-  const { walletAddress, walletBalance } = useUserStore();
+  const { walletAddress } = useUserStore();
   const { disconnectHandle } = useAuth();
   const router = useRouter();
+  const { walletBalance, isLoading, error, lastUpdated, refreshBalance } = useWalletBalance();
 
   const handleDisconnect = () => {
     Alert.alert(
@@ -45,32 +48,75 @@ export default function ProfileScreen() {
     return `${address.slice(0, 6)}...${address.slice(-6)}`;
   };
 
+  const onRefresh = React.useCallback(() => {
+    refreshBalance();
+  }, [refreshBalance]);
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.mainContainer}>
+      <ScrollView
+        style={styles.mainContainer}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
-          <Text style={styles.subtitle}>Manage your wallet and settings</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>Profile</Text>
+            <Text style={styles.subtitle}>Manage your wallet and settings</Text>
+          </View>
+          {walletAddress && (
+            <TouchableOpacity style={styles.refreshButton} onPress={refreshBalance}>
+              <Ionicons name="refresh" size={20} color="#007AFF" />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {walletAddress && (
+        {walletAddress ? (
           <>
             <View style={styles.balanceSection}>
               <View style={styles.balanceHeader}>
                 <Ionicons name="cash-outline" size={24} color="#34C759" />
                 <Text style={styles.sectionTitle}>Wallet Balance</Text>
+                {lastUpdated && (
+                  <Text style={styles.lastUpdated}>
+                    Last updated: {lastUpdated.toLocaleTimeString()}
+                  </Text>
+                )}
               </View>
+              
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="warning-outline" size={20} color="#FF9500" />
+                  <Text style={styles.errorText}>{error}</Text>
+                  <TouchableOpacity style={styles.retryButton} onPress={refreshBalance}>
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               
               <View style={styles.balanceGrid}>
                 <View style={styles.balanceItem}>
                   <Text style={styles.balanceLabel}>SOL</Text>
-                  <Text style={styles.balanceValue}>{walletBalance.sol.toFixed(4)}</Text>
+                  {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>Loading...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.balanceValue}>{walletBalance.sol.toFixed(4)}</Text>
+                  )}
                   <Text style={styles.balanceNetwork}>Devnet</Text>
                 </View>
                 
                 <View style={styles.balanceItem}>
                   <Text style={styles.balanceLabel}>USDC</Text>
-                  <Text style={styles.balanceValue}>{walletBalance.usdc.toFixed(2)}</Text>
+                  {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>Loading...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.balanceValue}>{walletBalance.usdc.toFixed(2)}</Text>
+                  )}
                   <Text style={styles.balanceNetwork}>Devnet</Text>
                 </View>
               </View>
@@ -107,6 +153,12 @@ export default function ProfileScreen() {
               </View>
             </View>
           </>
+        ) : (
+          <View style={styles.noWalletSection}>
+            <Ionicons name="wallet-outline" size={48} color="#666666" />
+            <Text style={styles.noWalletTitle}>No Wallet Connected</Text>
+            <Text style={styles.noWalletText}>Connect your wallet to view balances and manage your profile</Text>
+          </View>
         )}
 
         <View style={styles.actionsSection}>
@@ -132,6 +184,17 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 10,
     marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerContent: {
+    flex: 1,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
   },
   title: {
     fontSize: 28,
@@ -168,6 +231,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    flexWrap: 'wrap',
   },
   balanceGrid: {
     flexDirection: 'row',
@@ -270,5 +334,78 @@ const styles = StyleSheet.create({
   },
   disconnectText: {
     color: '#FF3B30',
+  },
+  lastUpdated: {
+    fontSize: 12,
+    color: '#666666',
+    marginLeft: 'auto',
+    fontStyle: 'italic',
+  },
+  errorContainer: {
+    backgroundColor: '#FFF3CD',
+    borderWidth: 1,
+    borderColor: '#FFEAA7',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#856404',
+    marginLeft: 8,
+    flex: 1,
+  },
+  retryButton: {
+    backgroundColor: '#FF9500',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666666',
+    fontStyle: 'italic',
+  },
+  noWalletSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 40,
+    marginBottom: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  noWalletTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noWalletText: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

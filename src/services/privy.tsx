@@ -1,7 +1,6 @@
 // TODO: Implement Privy wallet integration
 // This file will contain Privy authentication and wallet management logic
 import React from 'react';
-
 import { PrivyProvider, Chain } from '@privy-io/expo';
 
 const solanaDevnet: Chain = {
@@ -34,14 +33,14 @@ export const privyConfig = {
   // - Chain configuration for Solana Devnet
   // - Authentication methods
   appId: process.env.EXPO_PUBLIC_PRIVY_APP_ID || '',
-    
+
 };
 
 // TODO: Export Privy provider wrapper component
 // TODO: Export wallet connection hooks
 // TODO: Export transaction signing methods
 
-export const PrivyProviderWrapper = ({ children }: { children: React.ReactNode }) => {
+export const PrivyProviderWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <PrivyProvider appId={privyConfig.appId} supportedChains={[solanaDevnet]}>
       {children}

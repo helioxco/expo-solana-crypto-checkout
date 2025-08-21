@@ -31,7 +31,6 @@ export interface PaymentMethod {
 }
 
 export interface CrossmintOrder {
-  id: string;
   clientSecret: string;
   status: 'pending' | 'quote' | 'payment' | 'completed' | 'failed';
   quote?: {
@@ -40,13 +39,25 @@ export interface CrossmintOrder {
       currency: string;
     };
     expiresAt: string;
+    quotedAt?: string;
+    status?: string;
   };
   payment?: {
     preparation?: {
       serializedTransaction?: string;
       payerAddress?: string;
+      chain?: string;
+      transactionParameters?: {
+        amount: string;
+        memo: string;
+      };
     };
   };
+}
+
+export interface CrossmintOrderResponse {
+  id: string;
+  order: CrossmintOrder;
 }
 
 export interface WalletBalance {

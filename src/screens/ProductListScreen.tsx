@@ -1,24 +1,49 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import {
+  FlatList,
+  Image,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MOCK_PRODUCTS, PAYMENT_METHODS } from '../utils/constants';
 import { useCartStore } from '../store/cartStore';
 import { useUserStore } from '../store/userStore';
+import { useWalletBalance } from '../hooks/useWalletBalance';
 
 export default function ProductListScreen() {
   const router = useRouter();
   const { addItem, items } = useCartStore();
-  const { walletBalance, selectedPaymentCurrency } = useUserStore();
+  const { selectedPaymentCurrency } = useUserStore();
+  const { walletBalance } = useWalletBalance();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 600);
+  }, []);
   
   const selectedPaymentMethod = PAYMENT_METHODS.find(m => m.currency === selectedPaymentCurrency);
   const currentBalance = walletBalance[selectedPaymentCurrency];
+
+  const onProductClicked = (asin: string) => {
+    router.push({ pathname: '/product-detail', params: { asin } });
+  };
 
   const renderProduct = ({ item }: any) => {
     const cryptoPrice = item.price * (selectedPaymentMethod?.exchangeRate || 1);
     
     return (
-      <TouchableOpacity style={styles.productCard}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => onProductClicked(item.asin)}
+        style={styles.productCard}
+      >
         <Image source={{ uri: item.image }} style={styles.productImage} />
         <Text style={styles.productName}>{item.name}</Text>
         <Text style={styles.productPrice}>${item.price}</Text>
@@ -50,7 +75,7 @@ export default function ProductListScreen() {
             <Text style={styles.balanceTitle}>Testnet Balance</Text>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceText}>
-                {walletBalance.sol.toFixed(2)} SOL
+                {walletBalance.sol.toFixed(4)} SOL
               </Text>
               <Text style={styles.balanceDivider}>•</Text>
               <Text style={styles.balanceText}>
@@ -97,6 +122,15 @@ export default function ProductListScreen() {
           keyExtractor={(item) => item.asin}
           numColumns={2}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          }
+          initialNumToRender={6}
+          windowSize={10}
+          removeClippedSubviews
         />
       </View>
     </SafeAreaView>
