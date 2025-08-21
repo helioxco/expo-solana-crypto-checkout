@@ -19,6 +19,8 @@ export default function RootLayout() {
           <Stack.Screen name="product-detail" options={{ title: 'Product Details' }} />
           <Stack.Screen name="cart" options={{ title: 'Cart' }} />
           <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
+          <Stack.Screen name="payment" options={{ title: 'Payment', headerShown: false }} />
+          <Stack.Screen name="payment-success" options={{ title: 'Payment Success', headerShown: false }} />
         </Stack>
       </QueryClientProvider>
     </PrivyProviderWrapper>

@@ -14,6 +14,7 @@
     "@privy-io/expo": "^0.58.3",
     "@privy-io/expo-native-extensions": "^0.0.5",
     "@privy-io/react-auth": "^2.21.3",
+    "@react-native-picker/picker": "^2.11.1",
     "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.85.3",
     "expo": "~53.0.20",

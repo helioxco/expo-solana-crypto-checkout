@@ -8,7 +8,6 @@ import {
 } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '../store/userStore';
-import { MOCK_WALLET_BALANCE } from '../utils/constants';
 
 export default function AuthScreen() {
   const [isConnecting, setIsConnecting] = useState(false);
@@ -29,7 +28,6 @@ export default function AuthScreen() {
         setWalletAddress(null);
       }
       
-      setWalletBalance(MOCK_WALLET_BALANCE);
       setIsConnecting(false);
 
     }, 1500);

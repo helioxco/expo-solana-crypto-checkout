@@ -3,6 +3,7 @@ import { usePrivy } from '@privy-io/expo';
 import { usePhantomDeeplinkWalletConnector } from '@privy-io/expo/connectors';
 import * as SecureStore from 'expo-secure-store';
 import { useUserStore } from '../store/userStore';
+import { fetchWalletBalance } from '../utils/wallet';
 
 // TODO: Integrate with Privy for real wallet authentication
 
@@ -54,18 +55,28 @@ export function useAuth() {
       (async () => {
         try {
           await SecureStore.setItemAsync(ADDRESS_KEY, address);
+          // Fetch real wallet balance when address changes
+          const balance = await fetchWalletBalance(address);
+          setWalletBalance(balance);
         } catch {}
       })();
     }
-  }, [address, setWalletAddress]);
+  }, [address, setWalletAddress, setWalletBalance]);
 
   // On mount or Privy user changes, hydrate from Privy (persistent session)
   useEffect(() => {
     const solAccount: any = (user as any)?.linked_accounts?.find((a: any) => a.type === 'wallet' && a.chain_type === 'solana');
     if (solAccount?.address) {
       setWalletAddress(solAccount.address as string);
+      // Fetch real wallet balance for Privy user
+      (async () => {
+        try {
+          const balance = await fetchWalletBalance(solAccount.address as string);
+          setWalletBalance(balance);
+        } catch {}
+      })();
     }
-  }, [user, setWalletAddress]);
+  }, [user, setWalletAddress, setWalletBalance]);
 
   return {
     walletAddress,
