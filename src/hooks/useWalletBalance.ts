@@ -36,20 +36,16 @@ export function useWalletBalance() {
       }
 
       // Get balance directly from Solana RPC
-      console.log('🔗 Connecting to Solana RPC:', ENV.SOLANA_RPC_URL);
       const connection = new Connection(ENV.SOLANA_RPC_URL, 'confirmed');
       const publicKey = new PublicKey(privyWalletAddress);
 
       // Fetch SOL balance
-      console.log('💰 Fetching SOL balance...');
       const solBalance = await connection.getBalance(publicKey);
       const solAmount = solBalance / LAMPORTS_PER_SOL;
-      console.log('✅ SOL balance:', solAmount);
 
       // Fetch USDC balance (SPL token)
       let usdcAmount = 0;
       try {
-        console.log('💰 Fetching USDC balance...');
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
           mint: USDC_MINT_DEVNET,
         });
