@@ -55,6 +55,14 @@ export interface CrossmintOrder {
   };
 }
 
+export interface CrossmintLineItem {
+  collectionLocator: string; // Format: "crossmint:collectionId"
+  productLocator: string;    // Format: "amazon:ASIN"
+  callData: {
+    totalPrice: string;      // Total price for individual item
+  };
+}
+
 export interface CrossmintOrderResponse {
   id: string;
   order: CrossmintOrder;
