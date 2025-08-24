@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  Alert,
   ActivityIndicator,
   View,
   Text,
@@ -9,22 +10,30 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Connection, Transaction } from '@solana/web3.js';
+import bs58 from "bs58";
+import { useEmbeddedSolanaWallet } from '@privy-io/expo';
 import { useUserStore } from '../store/userStore';
 import { useCartStore } from '../store/cartStore';
 import { CrossmintOrder, CrossmintOrderResponse, ShippingAddress } from '../types';
-import { PAYMENT_METHODS, POLLING_INTERVAL, MAX_POLLING_ATTEMPTS } from '../utils/constants';
-import { getCrossmintService, createVALACollection } from '../utils/env';
+import { PAYMENT_METHODS } from '../utils/constants';
+import { ENV, getCrossmintService } from '../utils/env';
+import { useAuth } from '@/hooks/useAuth';
+import { useWalletBalance } from '../hooks/useWalletBalance';
+
 
 export default function PaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const shippingAddressParam = params.shippingAddress as string;
-  const { walletAddress, selectedPaymentCurrency, walletBalance } = useUserStore();
+  const { walletAddress, selectedPaymentCurrency } = useUserStore();
   const { items, getTotalPrice, clearCart } = useCartStore();
+  const { isConnected } = useAuth();
+  const { wallets } = useEmbeddedSolanaWallet();
+  const { walletBalance, isLoading: balanceLoading, error: balanceError } = useWalletBalance();
 
   const [crossmintOrder, setCrossmintOrder] = useState<CrossmintOrder | null>(null);
   const [isCreatingQuote, setIsCreatingQuote] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [paymentStatus, setPaymentStatus] = useState<string>('pending');
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +86,8 @@ export default function PaymentScreen() {
     setError(null);
     
     try {
-      const newCollection = await createVALACollection();
+      const crossmintService = getCrossmintService();
+      const newCollection = await crossmintService.createCollection();
       setCollectionId(newCollection.id);
       return newCollection.id;
     } catch (err) {
@@ -91,8 +101,8 @@ export default function PaymentScreen() {
 
   // Create Crossmint quote
   const createQuote = useCallback(async () => {
-    if (!shippingAddress || !walletAddress) {
-      setError('Missing shipping address or wallet connection');
+    if (!shippingAddress) {
+      setError('Missing shipping address');
       return;
     }
 
@@ -102,7 +112,7 @@ export default function PaymentScreen() {
     try {
       // Ensure collection exists first
       // const currentCollectionId = await ensureCollectionExists();
-      const currentCollectionId = "bf97fe4f-edd2-4fc8-bb9c-2deb7cbca962";
+      const currentCollectionId = "a7979cd5-8787-48e0-8672-d5681343322b";
       
       const crossmintService = getCrossmintService();
       
@@ -119,85 +129,68 @@ export default function PaymentScreen() {
         paymentCurrency: selectedPaymentCurrency,
         totalPrice: totalUSD,
         collectionId: currentCollectionId,
-        walletAddress: walletAddress,
+        walletAddress: wallets?.[0]?.address ?? '',
       });
 
-      // processPayment(order);
-      // setCrossmintOrder(order.order);
-      setPaymentStatus(order.order.status);
+      const serializedTransaction = order.order.payment?.preparation?.serializedTransaction ?? "";
+
+      try {
+        const wallet = wallets?.[0];
+        const provider = await wallet?.getProvider();
+
+        // Create a connection to the Solana network
+        const connection = new Connection(ENV.SOLANA_RPC_URL, 'confirmed');
+
+        // Create your transaction (either legacy Transaction or VersionedTransaction)
+        const transaction = Transaction.from(bs58.decode(serializedTransaction));
+
+        // Sign And Send the transaction
+        const res = await provider?.request({
+          method: 'signAndSendTransaction',
+          params: {
+            transaction: transaction,
+            connection: connection,
+          },
+        });
+
+        setPaymentStatus(order.order.status);
+        handlePaymentSuccess();
+      } catch (signError) {
+        console.error('Error in signAndSendTransaction:', signError);
+        throw new Error(`Transaction signing failed: ${signError instanceof Error ? signError.message : 'Unknown error'}`);
+      }
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create quote');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create quote';
+      console.error('Error in createQuote:', err);
+      setError(errorMessage);
     } finally {
       setIsCreatingQuote(false);
     }
-  }, [shippingAddress, walletAddress, items, selectedPaymentCurrency, ensureCollectionExists]);
+  }, [
+    shippingAddress,
+    walletAddress,
+    items,
+    selectedPaymentCurrency,
+    ensureCollectionExists,
+    isConnected,
+  ]);
 
-  // Update payer address and process payment
-  const processPayment = async (crossmintOrder?: CrossmintOrderResponse) => {
-    console.log('🔄 Processing payment...', crossmintOrder, walletAddress);
-    if (!crossmintOrder || !walletAddress) {
-      setError('Missing order or wallet connection');
-      return;
-    }
-
-    setIsProcessingPayment(true);
-    setError(null);
-
-    try {
-      const crossmintService = getCrossmintService();
-      
-      // Check if we have a serialized transaction to sign
-      if (crossmintOrder.order.payment?.preparation?.serializedTransaction) {
-        console.log('🔄 Processing payment with serialized transaction...');
-        
-        // The order is already prepared, we just need to sign and submit
-        const finalOrder = await crossmintService.signAndSubmitTransaction(
-          crossmintOrder.id,
-          crossmintOrder.order.payment.preparation.serializedTransaction,
-          walletAddress
-        );
-
-        if (finalOrder.status === 'completed') {
-          // Payment successful - navigate to success screen
-          clearCart();
-          router.replace('/payment-success');
-        } else if (finalOrder.status === 'failed') {
-          setError('Payment failed. Please try again.');
-        }
-      } else {
-        // Fallback: Update payer address and process payment
-        console.log('🔄 Updating payer address and processing payment...');
-        
-        const updatedOrder = await crossmintService.updatePayerAddress(
-          crossmintOrder.id,
-          walletAddress
-        );
-
-        // Poll for payment status
-        const finalOrder = await crossmintService.pollOrderStatus(
-          updatedOrder.id,
-          (order: CrossmintOrder) => {
-            setPaymentStatus(order.status);
-            setCrossmintOrder(order);
-          },
-          MAX_POLLING_ATTEMPTS,
-          POLLING_INTERVAL
-        );
-
-        if (finalOrder.status === 'completed') {
-          // Payment successful - navigate to success screen
-          clearCart();
-          router.replace('/payment-success');
-        } else if (finalOrder.status === 'failed') {
-          setError('Payment failed. Please try again.');
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment processing failed');
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
+  const handlePaymentSuccess = () => {
+    Alert.alert(
+      'Payment successful',
+      '',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            router.replace('/(tabs)');
+            clearCart();
+          }
+        },
+      ]
+    );
+  }
 
   // Handle retry
   const handleRetry = () => {
@@ -293,15 +286,27 @@ export default function PaymentScreen() {
             <View style={styles.walletRow}>
               <Text style={styles.walletLabel}>Address:</Text>
               <Text style={styles.walletValue} numberOfLines={1} ellipsizeMode="middle">
-                {walletAddress}
+                {wallets?.[0]?.address || walletAddress || 'Not connected'}
               </Text>
             </View>
             <View style={styles.walletRow}>
               <Text style={styles.walletLabel}>Balance:</Text>
-              <Text style={styles.walletValue}>
-                {currentBalance.toFixed(4)} {selectedPaymentCurrency.toUpperCase()}
-              </Text>
+              {balanceLoading ? (
+                <View style={styles.balanceLoading}>
+                  <ActivityIndicator size="small" color="#7c3aed" />
+                  <Text style={styles.balanceLoadingText}>Loading...</Text>
+                </View>
+              ) : balanceError ? (
+                <Text style={styles.balanceError}>Error loading balance</Text>
+              ) : (
+                <Text style={styles.walletValue}>
+                  {currentBalance.toFixed(4)} {selectedPaymentCurrency.toUpperCase()}
+                </Text>
+              )}
             </View>
+            {balanceError && (
+              <Text style={styles.balanceErrorText}>{balanceError}</Text>
+            )}
           </View>
 
           {/* Collection Status */}
@@ -793,5 +798,25 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     marginTop: 20,
+  },
+  balanceLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  balanceLoadingText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 8,
+  },
+  balanceError: {
+    fontSize: 14,
+    color: '#ef4444',
+    fontStyle: 'italic',
+  },
+  balanceErrorText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 5,
+    fontStyle: 'italic',
   },
 });
