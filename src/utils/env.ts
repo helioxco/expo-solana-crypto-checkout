@@ -6,16 +6,21 @@ export const ENV = {
   CROSSMINT_SERVER_KEY: process.env.EXPO_PUBLIC_CROSSMINT_SERVER_KEY || 'your-crossmint-server-key',
   CROSSMINT_CLIENT_KEY: process.env.EXPO_PUBLIC_CROSSMINT_CLIENT_KEY || 'your-crossmint-client-key',
   CROSSMINT_PROJECT_ID: process.env.EXPO_PUBLIC_CROSSMINT_PROJECT_ID || 'your-crossmint-project-id',
-  
+
   // Privy configuration
   PRIVY_APP_ID: process.env.EXPO_PUBLIC_PRIVY_APP_ID || 'your-privy-app-id',
-  
+  PRIVY_APP_SECRET: process.env.EXPO_PUBLIC_PRIVY_APP_SECRET || 'your-privy-app-secret',
+  PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID || 'your-privy-client-id',
+
   // Solana configuration
   SOLANA_RPC_URL: process.env.EXPO_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com',
-  
+
   // Environment
   IS_DEVNET: process.env.EXPO_PUBLIC_USE_TESTNET === 'true' || true,
   
+  // Server configuration
+  SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL || 'http://208.52.189.101:3001', // 'http://localhost:3001',
+
   // API endpoints
   CROSSMINT_API_URL: process.env.EXPO_PUBLIC_USE_TESTNET === 'true' 
     ? 'https://staging.crossmint.com/api/2022-06-09'

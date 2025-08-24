@@ -1,36 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  ActivityIndicator,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
-import { useUserStore } from '../store/userStore';
 
 export default function AuthScreen() {
-  const [isConnecting, setIsConnecting] = useState(false);
-  const { setWalletAddress, setWalletBalance } = useUserStore();
-  const { connectHandle, address, isConnected } = useAuth();
-
+  const { connectHandle } = useAuth();
+  
   const handleConnect = async () => {
-    setIsConnecting(true);
-
-    // TODO: Implement actual Privy wallet connection
-    // For now, simulate connection with mock data
-    await connectHandle();
-    setTimeout(() => {
-      // const mockAddress = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // Mock Solana devnet address
-      if (isConnected) {
-        setWalletAddress(address || '');
-      } else {
-        setWalletAddress(null);
-      }
-      
-      setIsConnecting(false);
-
-    }, 1500);
+    connectHandle();
   };
 
   return (
@@ -45,15 +26,10 @@ export default function AuthScreen() {
       </View>
 
       <TouchableOpacity
-        style={[styles.connectButton, isConnecting && styles.connectButtonDisabled]}
+        style={styles.connectButton}
         onPress={handleConnect}
-        disabled={isConnecting}
       >
-        {isConnecting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.connectButtonText}>Connect Wallet</Text>
-        )}
+        <Text style={styles.connectButtonText}>Connect Wallet</Text>
       </TouchableOpacity>
 
       <Text style={styles.disclaimer}>
