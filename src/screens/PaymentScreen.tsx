@@ -116,10 +116,13 @@ export default function PaymentScreen() {
       
       const crossmintService = getCrossmintService();
       
-      // Create line items with product information
+      // Create line items with the correct Crossmint format
       const lineItems = items.map(item => ({
-        productLocator: item.asin,
-        quantity: item.quantity,
+        collectionLocator: `crossmint:${currentCollectionId}`,
+        productLocator: `amazon:${item.asin}`,
+        callData: {
+          totalPrice: (item.price * item.quantity).toString()
+        }
       }));
 
       const order: CrossmintOrderResponse = await crossmintService.createOrder({
@@ -127,7 +130,6 @@ export default function PaymentScreen() {
         shippingAddress,
         lineItems,
         paymentCurrency: selectedPaymentCurrency,
-        totalPrice: totalUSD,
         collectionId: currentCollectionId,
         walletAddress: wallets?.[0]?.address ?? '',
       });

@@ -1,6 +1,7 @@
 import {
   CrossmintOrder,
   CrossmintOrderResponse,
+  CrossmintLineItem,
   ShippingAddress,
   PaymentCurrency,
 } from '../types';
@@ -139,23 +140,12 @@ export class CrossmintService {
   async createOrder(params: {
     email: string;
     shippingAddress: ShippingAddress;
-    lineItems: Array<{ productLocator: string; quantity: number }>;
+    lineItems: CrossmintLineItem[];
     paymentCurrency: PaymentCurrency;
-    totalPrice: number;
     collectionId: string;
     walletAddress: string;
   }): Promise<CrossmintOrderResponse> {
-
     const paymentMethod = getPaymentMethod(params.paymentCurrency);
-    
-    const totalPrice = params.totalPrice || 0;
-
-    const lineItems = {
-      collectionLocator: `crossmint:${params.collectionId}`,
-      callData: {
-        totalPrice: totalPrice.toString()
-      }
-    };
 
     const requestBody = {
       recipient: {
@@ -169,10 +159,8 @@ export class CrossmintService {
         currency: paymentMethod.currency,
         payerAddress: params.walletAddress,
       },
-      lineItems: lineItems,
+      lineItems: params.lineItems,
     };
-
-    console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(`${ENV.CROSSMINT_API_URL}/orders`, {
       method: 'POST',
