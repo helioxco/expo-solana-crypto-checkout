@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEmbeddedSolanaWallet } from '@privy-io/expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useUserStore } from '../store/userStore';
@@ -20,6 +21,7 @@ export default function ProfileScreen() {
   const { disconnectHandle } = useAuth();
   const router = useRouter();
   const { walletBalance, isLoading, error, lastUpdated, refreshBalance } = useWalletBalance();
+  const { wallets } = useEmbeddedSolanaWallet();
 
   const handleDisconnect = () => {
     Alert.alert(
@@ -65,14 +67,14 @@ export default function ProfileScreen() {
             <Text style={styles.title}>Profile</Text>
             <Text style={styles.subtitle}>Manage your wallet and settings</Text>
           </View>
-          {walletAddress && (
+          {(walletAddress || wallets?.[0]) && (
             <TouchableOpacity style={styles.refreshButton} onPress={refreshBalance}>
               <Ionicons name="refresh" size={20} color="#007AFF" />
             </TouchableOpacity>
           )}
         </View>
 
-        {walletAddress ? (
+        {(walletAddress || wallets?.[0]) ? (
           <>
             <View style={styles.balanceSection}>
               <View style={styles.balanceHeader}>
@@ -126,6 +128,9 @@ export default function ProfileScreen() {
               <View style={styles.networkHeader}>
                 <Ionicons name="globe-outline" size={24} color="#FF9500" />
                 <Text style={styles.sectionTitle}>Network Information</Text>
+                {wallets?.[0] && (
+                  <Text style={styles.privyIndicator}>Connected via Privy</Text>
+                )}
               </View>
               
               <View style={styles.networkInfo}>
@@ -141,14 +146,14 @@ export default function ProfileScreen() {
               <View style={styles.networkInfo}>
                 <Text style={styles.label}>Address:</Text>
                 <Text style={styles.address} numberOfLines={1} ellipsizeMode="middle">
-                  {formatWalletAddress(walletAddress)}
+                  {formatWalletAddress(wallets?.[0]?.address || walletAddress)}
                 </Text>
               </View>
 
               <View style={styles.networkInfo}>
                 <Text style={styles.label}>Full Address:</Text>
                 <Text style={styles.fullAddress} numberOfLines={2} ellipsizeMode="middle">
-                  {walletAddress}
+                  {wallets?.[0]?.address || walletAddress}
                 </Text>
               </View>
             </View>
@@ -407,5 +412,12 @@ const styles = StyleSheet.create({
     color: '#666666',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  privyIndicator: {
+    fontSize: 12,
+    color: '#7c3aed',
+    marginLeft: 'auto',
+    fontStyle: 'italic',
+    fontWeight: '500',
   },
 });

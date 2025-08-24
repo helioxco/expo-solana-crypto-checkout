@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { usePrivy } from '@privy-io/expo';
-import { usePhantomDeeplinkWalletConnector } from '@privy-io/expo/connectors';
+import { useEffect, useState } from 'react';
+import { usePrivy, useEmbeddedSolanaWallet } from '@privy-io/expo';
+import { useLogin } from '@privy-io/expo/ui';
 import * as SecureStore from 'expo-secure-store';
 import { useUserStore } from '../store/userStore';
 import { fetchWalletBalance } from '../utils/wallet';
@@ -11,80 +11,65 @@ const ADDRESS_KEY = 'wallet_address';
 
 export function useAuth() {
   const { walletAddress, setWalletAddress, setWalletBalance } = useUserStore();
+  const { login } = useLogin();
   const { logout, user } = usePrivy();
+  const { wallets } = useEmbeddedSolanaWallet();
 
-  const {
-    address,
-    connect,
-    disconnect,
-    isConnected,
-    signTransaction,
-    signAndSendTransaction,
-  } = usePhantomDeeplinkWalletConnector({
-    appUrl: 'https://yourdapp.com',
-    redirectUri: '/(tabs)/products',
-  });
+  const [walletError, setWalletError] = useState<string | null>(null);
 
   const connectHandle = async () => {
-    await connect();
+    try {
+      await login({ loginMethods: ['email']})
+        .then((session) => {
+          console.log('User logged in', session.user);
+        })
+    } catch (error) {
+      console.log('error', error);
+    }
   };
 
   const disconnectHandle = async () => {
     try {
-      if (isConnected) {
-        await disconnect();
-      }
-    } catch (err: any) {
-      const message = String(err?.message || '');
-      if (!message.includes('missing shared secret')) {
-        throw err;
-      }
-    } finally {
+      await logout();
       setWalletAddress(null);
       setWalletBalance({ sol: 0, usdc: 0 });
-      try {
-        await SecureStore.deleteItemAsync(ADDRESS_KEY);
-      } catch {}
+      await SecureStore.deleteItemAsync(ADDRESS_KEY);
+      setWalletError(null);
+    } catch (error) {
+      console.error('Disconnect error:', error);
     }
   };
 
-  // Sync address changes into app state and persistent storage
+  // Check for existing wallet address on mount
   useEffect(() => {
-    if (address) {
-      setWalletAddress(address);
-      (async () => {
-        try {
-          await SecureStore.setItemAsync(ADDRESS_KEY, address);
-          // Fetch real wallet balance when address changes
-          const balance = await fetchWalletBalance(address);
-          setWalletBalance(balance);
-        } catch {}
-      })();
-    }
-  }, [address, setWalletAddress, setWalletBalance]);
-
-  // On mount or Privy user changes, hydrate from Privy (persistent session)
-  useEffect(() => {
-    const solAccount: any = (user as any)?.linked_accounts?.find((a: any) => a.type === 'wallet' && a.chain_type === 'solana');
-    if (solAccount?.address) {
-      setWalletAddress(solAccount.address as string);
-      // Fetch real wallet balance for Privy user
-      (async () => {
-        try {
-          const balance = await fetchWalletBalance(solAccount.address as string);
-          setWalletBalance(balance);
-        } catch {}
-      })();
-    }
-  }, [user, setWalletAddress, setWalletBalance]);
+    const checkExistingWallet = async () => {
+      try {
+        const storedAddress = await SecureStore.getItemAsync(ADDRESS_KEY);
+        if (storedAddress) {
+          setWalletAddress(storedAddress);
+          // Fetch balance for existing wallet
+          try {
+            const balance = await fetchWalletBalance(storedAddress);
+            setWalletBalance(balance);
+          } catch (error) {
+            console.warn('Failed to fetch balance for existing wallet:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking existing wallet:', error);
+      }
+    };
+    
+    checkExistingWallet();
+  }, [setWalletAddress, setWalletBalance]);
 
   return {
     walletAddress,
-    isConnected: !!(walletAddress || isConnected),
+    isConnected: !!walletAddress,
+    walletError,
     connectHandle,
     disconnectHandle,
-    signTransaction,
-    signAndSendTransaction,
-    address,
+    user,
+    wallets,
   };
 }

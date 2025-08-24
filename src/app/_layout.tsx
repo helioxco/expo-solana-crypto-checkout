@@ -1,6 +1,13 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+} from '@expo-google-fonts/inter';
+import { useFonts } from 'expo-font';
+import { PrivyElements } from '@privy-io/expo/ui';
 
 // TODO: Import and wrap with Privy provider
 // import { PrivyProvider } from '../services/privy';
@@ -9,6 +16,12 @@ import { PrivyProviderWrapper } from '../services/privy';
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
+  useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+  });
+
   return (
     <PrivyProviderWrapper>
       <QueryClientProvider client={queryClient}>
@@ -23,6 +36,7 @@ export default function RootLayout() {
           <Stack.Screen name="payment-success" options={{ title: 'Payment Success', headerShown: false }} />
         </Stack>
       </QueryClientProvider>
+      <PrivyElements />
     </PrivyProviderWrapper>
   );
 }

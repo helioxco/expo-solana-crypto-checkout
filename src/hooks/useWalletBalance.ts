@@ -1,15 +1,26 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useUserStore } from '../store/userStore';
-import { fetchWalletBalance, WalletBalance } from '../utils/wallet';
+import { useEmbeddedSolanaWallet } from '@privy-io/expo';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { ENV } from '../utils/env';
+
+// USDC mint address on Solana Devnet
+const USDC_MINT_DEVNET = new PublicKey('Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr');
+
+export interface WalletBalance {
+  sol: number;
+  usdc: number;
+}
 
 export function useWalletBalance() {
   const { walletAddress, walletBalance, setWalletBalance } = useUserStore();
+  const { wallets } = useEmbeddedSolanaWallet();
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refreshBalance = useCallback(async () => {
-    if (!walletAddress) {
+    if (!wallets?.[0]) {
       setWalletBalance({ sol: 0, usdc: 0 });
       return;
     }
@@ -18,7 +29,49 @@ export function useWalletBalance() {
     setError(null);
 
     try {
-      const balance = await fetchWalletBalance(walletAddress);
+      // Use the wallet address from Privy wallet
+      const privyWalletAddress = wallets[0].address;
+      if (!privyWalletAddress) {
+        throw new Error('No wallet address available from Privy wallet');
+      }
+
+      // Get balance directly from Solana RPC
+      console.log('🔗 Connecting to Solana RPC:', ENV.SOLANA_RPC_URL);
+      const connection = new Connection(ENV.SOLANA_RPC_URL, 'confirmed');
+      const publicKey = new PublicKey(privyWalletAddress);
+
+      // Fetch SOL balance
+      console.log('💰 Fetching SOL balance...');
+      const solBalance = await connection.getBalance(publicKey);
+      const solAmount = solBalance / LAMPORTS_PER_SOL;
+      console.log('✅ SOL balance:', solAmount);
+
+      // Fetch USDC balance (SPL token)
+      let usdcAmount = 0;
+      try {
+        console.log('💰 Fetching USDC balance...');
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+          mint: USDC_MINT_DEVNET,
+        });
+
+        if (tokenAccounts.value.length > 0) {
+          const usdcAccount = tokenAccounts.value[0];
+          const balance = usdcAccount.account.data.parsed.info.tokenAmount;
+          usdcAmount = balance.uiAmount || 0;
+          console.log('✅ USDC balance:', usdcAmount);
+        } else {
+          console.log('ℹ️ No USDC token accounts found');
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to fetch USDC balance:', error);
+      }
+
+      const balance = {
+        sol: solAmount,
+        usdc: usdcAmount,
+      };
+
+      console.log('✅ Balance fetch successful - SOL:', solAmount, 'USDC:', usdcAmount);
       setWalletBalance(balance);
       setLastUpdated(new Date());
     } catch (err) {
@@ -28,21 +81,21 @@ export function useWalletBalance() {
     } finally {
       setIsLoading(false);
     }
-  }, [walletAddress, setWalletBalance]);
+  }, [wallets, setWalletBalance]);
 
-  // Auto-refresh balance when wallet address changes
+  // Auto-refresh balance when wallets change
   useEffect(() => {
     refreshBalance();
   }, [refreshBalance]);
 
   // Auto-refresh balance every 30 seconds when connected
   useEffect(() => {
-    if (!walletAddress) return;
+    if (!wallets?.[0]) return;
 
     const interval = setInterval(refreshBalance, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, [walletAddress, refreshBalance]);
+  }, [wallets, refreshBalance]);
 
   return {
     walletBalance,
