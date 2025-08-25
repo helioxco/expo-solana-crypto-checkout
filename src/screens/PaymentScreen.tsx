@@ -112,14 +112,13 @@ export default function PaymentScreen() {
     }, 2500);
 
     setPollingIntervalId(intervalId);
-
-    // Set a timeout to stop polling after 60 seconds
-    setTimeout(() => {
-      clearInterval(intervalId);
-      setPollingIntervalId(null);
-      console.log("Taking longer than expected...");
-    }, 60000);
   };
+
+  useEffect(() => {
+    if (pollingIntervalId && timeRemaining <= 0) {
+      clearInterval(pollingIntervalId);
+    }
+  }, [timeRemaining]);
 
   // Cleanup polling interval on component unmount
   useEffect(() => {
