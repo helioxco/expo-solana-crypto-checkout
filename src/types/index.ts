@@ -31,8 +31,7 @@ export interface PaymentMethod {
 }
 
 export interface CrossmintOrder {
-  clientSecret: string;
-  status: 'pending' | 'quote' | 'payment' | 'completed' | 'failed';
+  orderId: string;
   quote?: {
     totalPrice: {
       amount: string;
@@ -52,6 +51,7 @@ export interface CrossmintOrder {
         memo: string;
       };
     };
+    status: string;
   };
 }
 
@@ -64,7 +64,7 @@ export interface CrossmintLineItem {
 }
 
 export interface CrossmintOrderResponse {
-  id: string;
+  clientSecret: string;
   order: CrossmintOrder;
 }
 

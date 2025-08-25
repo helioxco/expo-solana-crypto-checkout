@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Alert,
   ActivityIndicator,
@@ -34,12 +34,13 @@ export default function PaymentScreen() {
 
   const [crossmintOrder, setCrossmintOrder] = useState<CrossmintOrder | null>(null);
   const [isCreatingQuote, setIsCreatingQuote] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [paymentStatus, setPaymentStatus] = useState<string>('pending');
+  const [paymentStatus, setPaymentStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
-
+  const [pollingIntervalId, setPollingIntervalId] = useState<number | null>(null);
 
   const selectedPaymentMethod = PAYMENT_METHODS.find(m => m.currency === selectedPaymentCurrency);
   const totalUSD = getTotalPrice();
@@ -54,22 +55,80 @@ export default function PaymentScreen() {
   // Check if user has sufficient balance
   const hasSufficientBalance = currentBalance >= totalCrypto;
 
-  // Timer for quote expiration
+  // Get order status
+  const orderStatus = useMemo(() => {
+    return crossmintOrder?.payment?.status ?? 'pending';
+  }, [crossmintOrder]);
+
+  // Timer for order expiration
   useEffect(() => {
     if (!crossmintOrder?.quote?.expiresAt) return;
 
     const timer = setInterval(() => {
-      const remaining = getCrossmintService().getTimeRemaining(crossmintOrder.quote!.expiresAt);
+      const remaining = getTimeRemaining(crossmintOrder.quote!.expiresAt);
       setTimeRemaining(remaining);
 
       if (remaining <= 0) {
-        setError('Quote has expired. Please create a new quote.');
+        setError('Order has expired. Please create a new order.');
         clearInterval(timer);
+        // Stop polling when order expires
+        if (pollingIntervalId) {
+          clearInterval(pollingIntervalId);
+          setPollingIntervalId(null);
+        }
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [crossmintOrder]);
+  }, [crossmintOrder, pollingIntervalId]);
+
+  // Get quote expiration time
+  const getQuoteExpirationTime = (quoteExpiresAt: string): Date => {
+    return new Date(quoteExpiresAt);
+  }
+
+  // Get time remaining until quote expires
+  const getTimeRemaining = (quoteExpiresAt: string): number => {
+    const expirationTime = getQuoteExpirationTime(quoteExpiresAt);
+    const now = new Date();
+    return Math.max(0, expirationTime.getTime() - now.getTime());
+  }
+
+  const pollPaymentStatus = async (orderId: string, clientSecret: string) => {
+    const intervalId = setInterval(async () => {
+      try {
+        const order = await getCrossmintService().getOrderPaymentStatus(orderId, clientSecret);
+        console.log("payment status: ", order);
+        if (order.payment.status === "completed") {
+          setCrossmintOrder(order);
+          clearInterval(intervalId);
+          setPollingIntervalId(null);
+          setPaymentStatus('completed');
+          handlePaymentSuccess();
+        }
+      } catch (error) {
+        console.error("Error polling payment status:", error);
+      }
+    }, 2500);
+
+    setPollingIntervalId(intervalId);
+
+    // Set a timeout to stop polling after 60 seconds
+    setTimeout(() => {
+      clearInterval(intervalId);
+      setPollingIntervalId(null);
+      console.log("Taking longer than expected...");
+    }, 60000);
+  };
+
+  // Cleanup polling interval on component unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalId) {
+        clearInterval(pollingIntervalId);
+      }
+    };
+  }, [pollingIntervalId]);
 
   // Format time remaining
   const formatTimeRemaining = (ms: number): string => {
@@ -125,7 +184,7 @@ export default function PaymentScreen() {
         }
       }));
 
-      const order: CrossmintOrderResponse = await crossmintService.createOrder({
+      const orderResponse: CrossmintOrderResponse = await crossmintService.createOrder({
         email: 'user@example.com', // TODO: Get from user profile
         shippingAddress,
         lineItems,
@@ -134,33 +193,9 @@ export default function PaymentScreen() {
         walletAddress: wallets?.[0]?.address ?? '',
       });
 
-      const serializedTransaction = order.order.payment?.preparation?.serializedTransaction ?? "";
-
-      try {
-        const wallet = wallets?.[0];
-        const provider = await wallet?.getProvider();
-
-        // Create a connection to the Solana network
-        const connection = new Connection(ENV.SOLANA_RPC_URL, 'confirmed');
-
-        // Create your transaction (either legacy Transaction or VersionedTransaction)
-        const transaction = Transaction.from(bs58.decode(serializedTransaction));
-
-        // Sign And Send the transaction
-        const res = await provider?.request({
-          method: 'signAndSendTransaction',
-          params: {
-            transaction: transaction,
-            connection: connection,
-          },
-        });
-
-        setPaymentStatus(order.order.status);
-        handlePaymentSuccess();
-      } catch (signError) {
-        console.error('Error in signAndSendTransaction:', signError);
-        throw new Error(`Transaction signing failed: ${signError instanceof Error ? signError.message : 'Unknown error'}`);
-      }
+      setCrossmintOrder(orderResponse.order);
+      setPaymentStatus(orderResponse.order.payment?.status ?? 'awaiting-payment');
+      pollPaymentStatus(orderResponse.order.orderId, orderResponse.clientSecret);
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create quote';
@@ -178,21 +213,66 @@ export default function PaymentScreen() {
     isConnected,
   ]);
 
-  const handlePaymentSuccess = () => {
-    Alert.alert(
-      'Payment successful',
-      '',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            router.replace('/(tabs)');
-            clearCart();
-          }
+  const handleSignAndSendTransaction = async () => {
+    if (!crossmintOrder?.payment?.preparation?.serializedTransaction) {
+      setError('Transaction not ready. Please try again.');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setError(null);
+
+    try {
+      const serializedTransaction = crossmintOrder.payment.preparation.serializedTransaction;
+      const wallet = wallets?.[0];
+      const provider = await wallet?.getProvider();
+
+      // Create a connection to the Solana network
+      const connection = new Connection(ENV.SOLANA_RPC_URL, 'confirmed');
+
+      // Create your transaction (either legacy Transaction or VersionedTransaction)
+      const transaction = Transaction.from(bs58.decode(serializedTransaction));
+
+      // Sign And Send the transaction
+      const res = await provider?.request({
+        method: 'signAndSendTransaction',
+        params: {
+          transaction: transaction,
+          connection: connection,
         },
-      ]
-    );
-  }
+      });
+      console.log("signAndSendTransaction res: ", res);
+
+      const { signature } = res ?? {};
+
+      if (signature) {
+        setPaymentStatus('completed');
+        // Stop polling when payment is completed
+        // if (pollingIntervalId) {
+        //   clearInterval(pollingIntervalId);
+        //   setPollingIntervalId(null);
+        // }
+      }
+
+    } catch (signError) {
+      console.error('Error in signAndSendTransaction:', signError);
+      const errorMessage = `Transaction signing failed: ${signError instanceof Error ? signError.message : 'Unknown error'}`;
+      setError(errorMessage);
+      setPaymentStatus('failed');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handlePaymentSuccess = () => {
+    // Payment success is now handled by the UI state
+    // No need to show alert immediately
+  };
+
+  const handleDone = () => {
+    router.replace('/(tabs)');
+    clearCart();
+  };
 
   // Handle retry
   const handleRetry = () => {
@@ -200,6 +280,11 @@ export default function PaymentScreen() {
     setCrossmintOrder(null);
     setPaymentStatus('pending');
     setTimeRemaining(0);
+    // Clear any existing polling
+    if (pollingIntervalId) {
+      clearInterval(pollingIntervalId);
+      setPollingIntervalId(null);
+    }
   };
 
   // Handle back to checkout
@@ -212,8 +297,10 @@ export default function PaymentScreen() {
     switch (status) {
       case 'pending':
         return styles.statuspending;
-      case 'payment':
-        return styles.statuspayment;
+      case 'awaiting-payment':
+        return styles.statusawaitingpayment;
+      case 'processing':
+        return styles.statusprocessing;
       case 'completed':
         return styles.statuscompleted;
       case 'failed':
@@ -249,6 +336,44 @@ export default function PaymentScreen() {
           <TouchableOpacity style={styles.retryButton} onPress={handleBackToCheckout}>
             <Text style={styles.retryButtonText}>Back to Checkout</Text>
           </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show success state when payment is completed
+  if (paymentStatus === 'completed' || orderStatus === 'completed') {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
+        <View style={styles.container}>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Payment Successful!</Text>
+              <Text style={styles.subtitle}>Your order has been processed successfully</Text>
+            </View>
+
+            {/* Success Message */}
+            <View style={styles.successSection}>
+              <View style={styles.successIcon}>
+                <Text style={styles.successIconText}>✓</Text>
+              </View>
+              <Text style={styles.successTitle}>Payment Completed</Text>
+              <Text style={styles.successText}>
+                Your payment of {totalCrypto.toFixed(4)} {selectedPaymentCurrency.toUpperCase()} has been processed successfully.
+              </Text>
+              <Text style={styles.successSubtext}>
+                Order ID: {crossmintOrder?.orderId}
+              </Text>
+            </View>
+
+            {/* Action Button */}
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleDone}>
+                <Text style={styles.primaryButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
       </SafeAreaView>
     );
@@ -311,32 +436,35 @@ export default function PaymentScreen() {
             )}
           </View>
 
-          {/* Collection Status */}
-          <View style={styles.collectionSection}>
-            <Text style={styles.collectionTitle}>Collection Setup</Text>
-            {!collectionId ? (
-              <>
-                <Text style={styles.collectionText}>
-                  Setting up product collection for your order...
+          {/* Order Status */}
+          {crossmintOrder && (
+            <View style={styles.statusSection}>
+              <Text style={styles.statusTitle}>Order Status</Text>
+              <View style={[styles.statusIndicator, getStatusStyle(orderStatus)]}>
+                <Text style={styles.statusText}>
+                  {orderStatus === 'pending' ? 'Creating Order...' :
+                   orderStatus === 'awaiting-payment' ? 'Awaiting Payment' :
+                   orderStatus === 'processing' ? 'Processing Payment' :
+                   orderStatus === 'completed' ? 'Payment Successful' :
+                   orderStatus === 'failed' ? 'Payment Failed' :
+                   orderStatus}
                 </Text>
-                {isCreatingCollection && (
-                  <View style={styles.collectionStatus}>
-                    <ActivityIndicator color="#007AFF" />
-                    <Text style={styles.collectionStatusText}>Creating collection...</Text>
-                  </View>
-                )}
-              </>
-            ) : (
-              <>
-                <Text style={styles.collectionText}>
-                  Collection ready! Using collection ID: {collectionId}
-                </Text>
-                <Text style={styles.collectionInfo}>
-                  ✓ Collection created successfully
-                </Text>
-              </>
-            )}
-          </View>
+              </View>
+              
+              {/* Time Remaining */}
+              {orderStatus === 'awaiting-payment' && crossmintOrder.quote?.expiresAt && (
+                <View style={styles.timeRemainingSection}>
+                  <Text style={styles.timeRemainingTitle}>Time Remaining</Text>
+                  <Text style={[styles.timeRemainingText, timeRemaining <= 30000 && styles.expiringSoon]}>
+                    {formatTimeRemaining(timeRemaining)}
+                  </Text>
+                  <Text style={styles.timeRemainingSubtext}>
+                    Order expires at {new Date(crossmintOrder.quote.expiresAt).toLocaleTimeString()}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Quote Section */}
           {!crossmintOrder && (
@@ -359,67 +487,24 @@ export default function PaymentScreen() {
             </View>
           )}
 
-          {/* Quote Display */}
-          {crossmintOrder && crossmintOrder.quote && (
-            <View style={styles.quoteDisplay}>
-              <Text style={styles.quoteTitle}>Payment Quote</Text>
-              <View style={styles.quoteDetails}>
-                <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Amount:</Text>
-                  <Text style={styles.quoteValue}>
-                    {crossmintOrder.quote.totalPrice.amount} {crossmintOrder.quote.totalPrice.currency}
-                  </Text>
-                </View>
-                <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Expires in:</Text>
-                  <Text style={[styles.quoteValue, timeRemaining <= 30000 && styles.expiringSoon]}>
-                    {formatTimeRemaining(timeRemaining)}
-                  </Text>
-                </View>
-              </View>
-              
-              {/* Transaction Details */}
-              {crossmintOrder.payment?.preparation && (
-                <View style={styles.transactionDetails}>
-                  <Text style={styles.transactionTitle}>Transaction Ready</Text>
-                  <View style={styles.transactionRow}>
-                    <Text style={styles.transactionLabel}>Chain:</Text>
-                    <Text style={styles.transactionValue}>
-                      {crossmintOrder.payment.preparation.chain || 'Solana'}
-                    </Text>
-                  </View>
-                  <View style={styles.transactionRow}>
-                    <Text style={styles.transactionLabel}>Amount:</Text>
-                    <Text style={styles.transactionValue}>
-                      {crossmintOrder.payment.preparation.transactionParameters?.amount 
-                        ? `${parseInt(crossmintOrder.payment.preparation.transactionParameters.amount) / 1000000000} SOL`
-                        : 'N/A'
-                      }
-                    </Text>
-                  </View>
-                  <View style={styles.transactionRow}>
-                    <Text style={styles.transactionLabel}>Status:</Text>
-                    <Text style={[styles.transactionValue, styles.statusReady]}>
-                      Ready to Sign & Submit
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Payment Status */}
-          {paymentStatus !== 'pending' && (
-            <View style={styles.statusSection}>
-              <Text style={styles.statusTitle}>Payment Status</Text>
-              <View style={[styles.statusIndicator, getStatusStyle(paymentStatus)]}>
-                <Text style={styles.statusText}>
-                  {paymentStatus === 'completed' ? 'Payment Successful' :
-                  paymentStatus === 'failed' ? 'Payment Failed' :
-                  paymentStatus === 'payment' ? 'Processing Payment' :
-                  paymentStatus}
-                </Text>
-              </View>
+          {/* Payment Action Button */}
+          {orderStatus === 'awaiting-payment' && (
+            <View style={styles.paymentActionSection}>
+              <Text style={styles.paymentActionTitle}>Process Payment</Text>
+              <Text style={styles.paymentActionText}>
+                Your order is ready. Click below to sign and submit the payment transaction.
+              </Text>
+              <TouchableOpacity
+                style={[styles.primaryButton, isProcessingPayment && styles.buttonDisabled]}
+                onPress={handleSignAndSendTransaction}
+                disabled={isProcessingPayment}
+              >
+                {isProcessingPayment ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Process Payment</Text>
+                )}
+              </TouchableOpacity>
             </View>
           )}
 
@@ -701,15 +786,21 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+    marginBottom: 15,
   },
   statuspending: {
     backgroundColor: '#fef3c7',
     borderColor: '#f59e0b',
     borderWidth: 1,
   },
-  statuspayment: {
+  statusawaitingpayment: {
     backgroundColor: '#dbeafe',
     borderColor: '#3b82f6',
+    borderWidth: 1,
+  },
+  statusprocessing: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#f59e0b',
     borderWidth: 1,
   },
   statuscompleted: {
@@ -726,6 +817,94 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  timeRemainingSection: {
+    backgroundColor: '#f8fafc',
+    padding: 15,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  timeRemainingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  timeRemainingText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#3b82f6',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  timeRemainingSubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  paymentActionSection: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  paymentActionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
+  paymentActionText: {
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  successSection: {
+    backgroundColor: '#d1fae5',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    alignItems: 'center',
+    borderLeftWidth: 4,
+    borderLeftColor: '#10b981',
+  },
+  successIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#10b981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  successIconText: {
+    fontSize: 30,
+    color: '#fff',
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#16a34a',
+    marginBottom: 10,
+  },
+  successText: {
+    fontSize: 16,
+    color: '#16a34a',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  successSubtext: {
+    fontSize: 14,
+    color: '#16a34a',
+    fontStyle: 'italic',
   },
   errorSection: {
     backgroundColor: '#fee2e2',
