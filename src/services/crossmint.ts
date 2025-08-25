@@ -220,110 +220,24 @@ export class CrossmintService {
     }
   }
 
-  async signAndSubmitTransaction(orderId: string, serializedTransaction: string, walletAddress: string): Promise<CrossmintOrder> {
-    console.log('Signing and submitting transaction for order:', orderId);
-    
+  async getOrderPaymentStatus (orderId: string, clientSecret: string): Promise<CrossmintOrder> {
     try {
-      // Step 1: Ensure wallet exists in Crossmint system
-      console.log('🔄 Ensuring wallet exists in Crossmint...');
-      let wallet: CrossmintWallet;
-      
-      try {
-        // Try to get existing wallet first
-        const walletResponse = await fetch(`${ENV.CROSSMINT_API_URL}/wallets/${walletAddress}`, {
-          method: 'GET',
-          headers: {
-            'X-API-KEY': this.serverKey,
-          },
-        });
-        
-        if (walletResponse.ok) {
-          wallet = await walletResponse.json();
-          console.log('✅ Wallet already exists:', wallet);
-        } else {
-          // Wallet doesn't exist, create it
-          console.log('🔄 Wallet not found, creating new wallet...');
-        }
-      } catch (error) {
-        console.log('🔄 Error getting wallet');
-      }
-
-      // Step 2: Create a transaction using Crossmint's API
-      console.log('🔄 Creating transaction via Crossmint API...');
-      
-      // Create transaction using the correct Crossmint API format
-      const API_URL = `${ENV.CROSSMINT_API_URL}/wallets/${walletAddress}/transactions`;
-      console.log("Creating transaction for wallet:", walletAddress);
-      console.log("API URL:", API_URL);
-      
-      const transactionResponse = await fetch(API_URL, {
-        method: 'POST',
+      const res = await fetch(`${ENV.CROSSMINT_API_URL}/orders/${orderId}`, {
+        method: "GET",
         headers: {
-          'X-API-KEY': this.serverKey,
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
+          "x-api-key": this.serverKey,
+          authorization: clientSecret,
         },
-        body: JSON.stringify({
-          params: {
-            transaction: serializedTransaction,
-            chain: "solana",
-            requiredSigners: [
-              `${walletAddress}`
-            ],
-            signer: [
-              `${walletAddress}`
-            ]
-          }
-        })
       });
 
-      if (!transactionResponse.ok) {
-        const errorData = await transactionResponse.json().catch(() => ({ message: 'Unknown error' }));
-        console.error('Crossmint transaction creation error:', errorData);
-        throw new Error(`Failed to create transaction: ${errorData.message || transactionResponse.statusText}`);
-      }
-
-      const transaction = await transactionResponse.json();
-      console.log('✅ Transaction created successfully:', transaction);
-
-      // Step 2: Approve the transaction
-      console.log('🔄 Approving transaction...');
-      
-      const approveResponse = await fetch(`${ENV.CROSSMINT_API_URL}/transactions/${transaction.id}/approve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': this.serverKey,
-        },
-        body: JSON.stringify({
-          // Approval parameters as needed
-        }),
-      });
-
-      if (!approveResponse.ok) {
-        const errorData = await approveResponse.json().catch(() => ({ message: 'Unknown error' }));
-        console.error('Crossmint transaction approval error:', errorData);
-        throw new Error(`Failed to approve transaction: ${errorData.message || approveResponse.statusText}`);
-      }
-
-      const approvedTransaction = await approveResponse.json();
-      console.log('✅ Transaction approved successfully:', approvedTransaction);
-
-      // Step 3: Poll for transaction status and order completion
-      console.log('🔄 Polling for transaction completion...');
-      
-      return await this.pollOrderStatus(
-        orderId,
-        (order: CrossmintOrder) => {
-          console.log('Order status updated:', order.status);
-        },
-        30, // Poll for up to 5 minutes
-        10000 // Every 10 seconds
-      );
-    } catch (error) {
-      console.error('Failed to sign and submit transaction:', error);
-      throw error;
+      const refreshedOrder = await res.json();
+      return refreshedOrder;
+    } catch (e) {
+        console.error(e);
+        throw new Error("Failed to fetch order");
     }
-  }
+  };
 
   async updatePayerAddress(orderId: string, payerAddress: string): Promise<CrossmintOrder> {
     const response = await fetch(`${ENV.CROSSMINT_API_URL}/orders/${orderId}`, {
@@ -346,79 +260,5 @@ export class CrossmintService {
     }
 
     return response.json();
-  }
-
-  async getOrderStatus(orderId: string): Promise<CrossmintOrder> {
-    const response = await fetch(`${ENV.CROSSMINT_API_URL}/orders/${orderId}`, {
-      headers: {
-        'X-API-KEY': this.clientSecret,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      console.error('Crossmint API error:', errorData);
-      throw new Error(`Failed to get order status: ${errorData.message || response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  // Helper method for polling order status
-  async pollOrderStatus(
-    orderId: string,
-    onStatusUpdate?: (order: CrossmintOrder) => void,
-    maxAttempts: number = 120, // 5 minutes max (120 * 2.5s)
-    interval: number = 2500 // 2.5 seconds
-  ): Promise<CrossmintOrder> {
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
-      try {
-        const order = await this.getOrderStatus(orderId);
-        
-        if (onStatusUpdate) {
-          onStatusUpdate(order);
-        }
-        
-        if (order.status === 'completed' || order.status === 'failed') {
-          return order;
-        }
-        
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, interval));
-        attempts++;
-      } catch (error) {
-        console.error(`Polling attempt ${attempts + 1} failed:`, error);
-        attempts++;
-        
-        // Continue polling even if one request fails
-        if (attempts >= maxAttempts) {
-          throw new Error('Order status polling timeout after network failures');
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, interval));
-      }
-    }
-    
-    throw new Error('Order status polling timeout');
-  }
-
-  // Get quote expiration time
-  getQuoteExpirationTime(quoteExpiresAt: string): Date {
-    return new Date(quoteExpiresAt);
-  }
-
-  // Check if quote is expired
-  isQuoteExpired(quoteExpiresAt: string): boolean {
-    const expirationTime = this.getQuoteExpirationTime(quoteExpiresAt);
-    return new Date() > expirationTime;
-  }
-
-  // Get time remaining until quote expires
-  getTimeRemaining(quoteExpiresAt: string): number {
-    const expirationTime = this.getQuoteExpirationTime(quoteExpiresAt);
-    const now = new Date();
-    return Math.max(0, expirationTime.getTime() - now.getTime());
   }
 }
