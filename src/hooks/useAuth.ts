@@ -4,12 +4,14 @@ import { useLogin } from '@privy-io/expo/ui';
 import * as SecureStore from 'expo-secure-store';
 import { useUserStore } from '../store/userStore';
 import { fetchWalletBalance } from '../utils/wallet';
+import { useRouter } from 'expo-router';
 
 // TODO: Integrate with Privy for real wallet authentication
 
 const ADDRESS_KEY = 'wallet_address';
 
 export function useAuth() {
+  const router = useRouter();
   const { walletAddress, setWalletAddress, setWalletBalance } = useUserStore();
   const { login } = useLogin();
   const { logout, user } = usePrivy();
@@ -22,6 +24,7 @@ export function useAuth() {
       await login({ loginMethods: ['email']})
         .then((session) => {
           console.log('User logged in', session.user);
+          router.replace('/(tabs)');
         })
     } catch (error) {
       console.log('error', error);

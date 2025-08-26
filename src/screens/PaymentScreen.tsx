@@ -184,7 +184,7 @@ export default function PaymentScreen() {
       }));
 
       const orderResponse: CrossmintOrderResponse = await crossmintService.createOrder({
-        email: 'user@example.com', // TODO: Get from user profile
+        email: 'user@vala.com', // TODO: Get from user profile
         shippingAddress,
         lineItems,
         paymentCurrency: selectedPaymentCurrency,
@@ -240,7 +240,6 @@ export default function PaymentScreen() {
           connection: connection,
         },
       });
-      console.log("signAndSendTransaction res: ", res);
 
       const { signature } = res ?? {};
 
