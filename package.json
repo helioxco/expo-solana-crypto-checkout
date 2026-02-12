@@ -1,5 +1,5 @@
 {
-  "name": "vala-assessment",
+  "name": "expo-solana-crypto-checkout",
   "version": "1.0.0",
   "main": "entrypoint.js",
   "scripts": {
