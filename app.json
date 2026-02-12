@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "VALA Assessment",
-    "slug": "vala-assessment",
-    "scheme": "vala-assessment",
+    "name": "Expo Solana Crypto Checkout",
+    "slug": "expo-solana-crypto-checkout",
+    "scheme": "expo-solana-crypto-checkout",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
