@@ -16,7 +16,7 @@ export default function AuthScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>VALA Assessment</Text>
+      <Text style={styles.title}>Helioxco Assessment</Text>
       <Text style={styles.subtitle}>Connect your wallet to purchase with crypto</Text>
 
       <View style={styles.infoBox}>

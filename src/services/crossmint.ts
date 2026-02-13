@@ -82,10 +82,10 @@ export class CrossmintService {
     const params = {
       chain: "solana", // Using Solana for crypto payments
       metadata: {
-        name: "VALA Assessment Products",
+        name: "Helioxco Assessment Products",
         imageUrl: "https://www.crossmint.com/assets/crossmint/logo.png",
-        description: "Product collection for VALA Assessment app",
-        symbol: "VALA"
+        description: "Product collection for Helioxco Assessment app",
+        symbol: "HELIOX"
       },
       fungibility: "non-fungible",
       transferable: true,
