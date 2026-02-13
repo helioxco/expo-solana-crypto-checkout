@@ -184,7 +184,7 @@ export default function PaymentScreen() {
       }));
 
       const orderResponse: CrossmintOrderResponse = await crossmintService.createOrder({
-        email: 'user@vala.com', // TODO: Get from user profile
+        email: 'user@heliox.co', // TODO: Get from user profile
         shippingAddress,
         lineItems,
         paymentCurrency: selectedPaymentCurrency,

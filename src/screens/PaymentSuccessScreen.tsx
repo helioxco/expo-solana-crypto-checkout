@@ -67,7 +67,7 @@ export default function PaymentSuccessScreen() {
         <View style={styles.supportInfo}>
           <Text style={styles.supportText}>
             Need help? Contact our support team at{' '}
-            <Text style={styles.supportEmail}>support@vala.finance</Text>
+            <Text style={styles.supportEmail}>support@heliox.co</Text>
           </Text>
         </View>
       </View>
